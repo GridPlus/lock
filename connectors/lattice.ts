@@ -1,0 +1,74 @@
+// @ts-ignore
+const get = () => import('eth-lattice-keyring');
+import LockConnector from '../src/connector';
+import { getInjected } from '../src/utils';
+
+export default class Connector extends LockConnector {
+  async connect() {
+    let provider;
+    if (window['ethereum']) {
+      provider = window['ethereum'];
+      try {
+        await window['ethereum'].enable();
+      } catch (e) {
+        console.error(e);
+        if (e.code === 4001) return;
+      }
+    } else if (window['web3']) {
+      provider = window['web3'].currentProvider;
+    }
+    // Initialize the Lattice keyring, unlock, and load the first account
+    const network = this.options.network || 'mainnet';
+    const LatticeKeyring = (await get()).default;
+    const lattice = new LatticeKeyring({ name: 'Snapshot', network });
+    try {
+      await lattice.unlock()
+      await lattice.addAccounts()
+    } catch (err) {
+      console.log('caught err?', err)
+      throw new Error(err);
+      return
+    }
+    // Overload web3 provider functions with our Lattice keyring instance
+    const getNetwork = () => { return network }
+    const listAccounts = async () => {
+      await lattice.unlock()
+      const accounts = await lattice.getAccounts()
+      return accounts
+    }
+    // Send methods
+    const _signPersonal = (address, msg) => {
+      return new Promise((resolve, reject) => {
+        // Sanity check on msg. We want to display ASCII if possible
+        let cleanedMsg = msg.slice(0, 2) === '0x' ? msg.slice(2) : msg
+        cleanedMsg = Buffer.from(cleanedMsg, 'hex').toString();
+        const isAscii = /^[\x00-\x7F]*$/.test(cleanedMsg);
+        if (false === isAscii)
+          cleanedMsg = msg;
+
+        lattice.unlock()
+        .then(() => {
+          return lattice.signPersonalMessage(address, cleanedMsg)
+        })
+        .then((result) => {
+          console.log('got result', result)
+          return resolve(result)
+        })
+        .catch((err) => {
+          return reject(err);
+        })
+      })
+    }
+    const send = (method, params) => {
+      switch (method) {
+        case 'personal_sign':
+          return _signPersonal(params[1], params[0])
+        default:
+          throw new Error(`Unsupported method: ${method}`)
+      }
+    }
+    // Set the web3 functionality as a provider attribute
+    provider.web3 = { send, getNetwork, listAccounts }
+    return provider;
+  }
+}
