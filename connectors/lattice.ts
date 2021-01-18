@@ -1,5 +1,5 @@
 // @ts-ignore
-const get = () => import('eth-lattice-keyring');
+const get = () => import(/* webpackChunkName: "eth-lattice-keyring" */ 'eth-lattice-keyring');
 import LockConnector from '../src/connector';
 import { getInjected } from '../src/utils';
 
@@ -25,7 +25,6 @@ export default class Connector extends LockConnector {
       await lattice.unlock()
       await lattice.addAccounts()
     } catch (err) {
-      console.log('caught err?', err)
       throw new Error(err);
       return
     }
@@ -51,7 +50,6 @@ export default class Connector extends LockConnector {
           return lattice.signPersonalMessage(address, cleanedMsg)
         })
         .then((result) => {
-          console.log('got result', result)
           return resolve(result)
         })
         .catch((err) => {
@@ -61,7 +59,7 @@ export default class Connector extends LockConnector {
     }
 
     const sendResolver = (sendFunc) => {
-      const overloadedSend = (method, params) => {
+      function overLoadedSend(method, params) {
         switch (method) {
           case 'personal_sign':
             return _signPersonal(params[1], params[0]);
@@ -69,6 +67,7 @@ export default class Connector extends LockConnector {
             return sendFunc(params);
         }
       }
+      return overLoadedSend;
     }
     // Set the web3 functionality as a provider attribute
     provider.web3 = { sendResolver, getNetwork, listAccounts }
