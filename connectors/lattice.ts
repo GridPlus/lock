@@ -59,16 +59,19 @@ export default class Connector extends LockConnector {
         })
       })
     }
-    const send = (method, params) => {
-      switch (method) {
-        case 'personal_sign':
-          return _signPersonal(params[1], params[0])
-        default:
-          throw new Error(`Unsupported method: ${method}`)
+
+    const sendResolver = (sendFunc) => {
+      const overloadedSend = (method, params) => {
+        switch (method) {
+          case 'personal_sign':
+            return _signPersonal(params[1], params[0]);
+          default:
+            return sendFunc(params);
+        }
       }
     }
     // Set the web3 functionality as a provider attribute
-    provider.web3 = { send, getNetwork, listAccounts }
+    provider.web3 = { sendResolver, getNetwork, listAccounts }
     return provider;
   }
 }
